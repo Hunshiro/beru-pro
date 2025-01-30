@@ -4,7 +4,7 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const connectDB = require('./database');
-const Welcome = require('../bot-server/models/welcome');
+const Welcome = require('./models/welcome.js');
 const afk = require('./commands/util/afk.js');
 
 
