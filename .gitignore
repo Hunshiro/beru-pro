@@ -1,3 +1,34 @@
+# Ignore node modules
 node_modules/
-.env
 bot-invite/
+
+# Ignore environment variables file
+.env
+
+# Ignore bot invite links or tokens file (assuming stored in invite.txt or similar)
+invite.txt
+bot-invite.txt
+invite-link.txt
+
+# Ignore logs
+logs/
+*.log
+
+# Ignore npm debug files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Ignore coverage directory
+coverage/
+
+# Ignore build output
+dist/
+build/
+
+# Ignore .env.local files
+.env.local
+.env.*.local
+
+# Ignore VSCode settings folder
+.vscode/

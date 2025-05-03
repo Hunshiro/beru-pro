@@ -3,7 +3,7 @@ const Welcome = require('../../models/welcome'); // MongoDB model for storing we
 
 module.exports = {
   name: 'setwelcome',
-  description: 'Set a custom DM welcome message and links.',
+  description: 'Set custom welcome messages and channel.',
   async execute(message) {
     // Check if the user has admin permissions
     if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
@@ -12,16 +12,36 @@ module.exports = {
 
     const filter = (response) => response.author.id === message.author.id;
 
+    // Ask for the server channel name
+    await message.reply('Please provide the **server channel name** where welcome messages should be sent (e.g., #welcome):');
+    const channelNameResponse = await message.channel.awaitMessages({
+      filter,
+      max: 1,
+      time: 30000,
+      errors: ['time'],
+    });
+    const channelName = channelNameResponse.first().content.trim();
+
+    // Ask for the server welcome message
+    await message.reply('Please provide the **server welcome message** (use `{user}` to mention the new member):');
+    const serverMessageResponse = await message.channel.awaitMessages({
+      filter,
+      max: 1,
+      time: 30000,
+      errors: ['time'],
+    });
+    const serverMessage = serverMessageResponse.first().content;
+
     // Ask for the DM welcome message
-    await message.reply('Please provide the **DM welcome message** (use `{user}` to mention the new member):');
+    await message.reply('Please provide the **DM welcome message** (use `{user}` to mention the new member, or type `none` to disable):');
     const dmMessageResponse = await message.channel.awaitMessages({
       filter,
       max: 1,
       time: 30000,
       errors: ['time'],
     });
-
-    const dmMessage = dmMessageResponse.first().content;
+    const dmMessageRaw = dmMessageResponse.first().content.toLowerCase();
+    const dmMessage = dmMessageRaw === 'none' ? null : dmMessageResponse.first().content;
 
     // Ask for the links message (optional)
     await message.reply('Please provide any **links or additional info** to be sent separately in DM (or type `none` if not needed):');
@@ -31,7 +51,6 @@ module.exports = {
       time: 30000,
       errors: ['time'],
     });
-
     const dmLinks = linksResponse.first().content.toLowerCase() === 'none' ? null : linksResponse.first().content;
 
     // Save to database
@@ -39,6 +58,8 @@ module.exports = {
       { guildId: message.guild.id },
       {
         guildId: message.guild.id,
+        channelName,
+        serverMessage,
         dmMessage,
         dmLinks,
       },
@@ -47,11 +68,13 @@ module.exports = {
 
     // Confirmation message
     const embed = new EmbedBuilder()
-      .setTitle('DM Welcome Message Configured ✅')
+      .setTitle('Welcome Message Configured ✅')
       .setColor('#00FF00')
-      .setDescription('Your DM welcome message has been successfully saved.')
+      .setDescription('Your welcome messages and channel have been successfully saved.')
       .addFields(
-        { name: 'DM Message', value: dmMessage, inline: false },
+        { name: 'Server Channel', value: channelName, inline: false },
+        { name: 'Server Message', value: serverMessage, inline: false },
+        { name: 'DM Message', value: dmMessage || 'Disabled', inline: false },
         { name: 'DM Links', value: dmLinks || 'Not Set', inline: false }
       );
 

@@ -2,7 +2,7 @@ const { AttachmentBuilder } = require('discord.js');
 const Canvas = require('canvas');
 
 module.exports = {
-  name: 'quote',
+  name: 'gandhi',
   description: 'Generate a stylish quote banner with a themed background and user avatar',
   async execute(message, args) {
     try {
@@ -16,14 +16,7 @@ module.exports = {
 
       // Array of background images with various themes (replace with actual URLs)
       const backgroundImages = [
-        'https://images.unsplash.com/photo-1506748686214-e9df14d4d9d0', // Nature
-        'https://images.unsplash.com/photo-1519681393784-d120267933ba', // Mountain
-        'https://images.unsplash.com/photo-1472214103451-9374bd1c798e', // Forest
-        'https://images.unsplash.com/photo-1552083375-1447ce886485', // Abstract
-        'https://images.unsplash.com/photo-1507525428034-b723cf961d3e',
-     'https://images.unsplash.com/photo-1506452305024-9d3f02d1c9b5',
-     'https://images.unsplash.com/photo-1629906751901-df824699df71',
-     'https://images.unsplash.com/photo-1612821394773-23f0a7d33ede'
+           'https://t3.ftcdn.net/jpg/09/68/67/52/240_F_968675298_LbXLPbLPzHo6ZXcVJcEJDhXYxoTSunsa.jpg'
       ];
 
       // Load and draw a random background image
@@ -97,23 +90,23 @@ module.exports = {
       const avatarX = 100;
 
       // Load and draw circular avatar
-      const avatar = await Canvas.loadImage(user.displayAvatarURL({ extension: 'png', size: 256 }));
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
-      ctx.closePath();
-      ctx.clip();
-      ctx.drawImage(avatar, avatarX, avatarY, avatarSize, avatarSize);
-      ctx.restore();
+      // const avatar = await Canvas.loadImage(user.displayAvatarURL({ extension: 'png', size: 256 }));
+      // ctx.save();
+      // ctx.beginPath();
+      // ctx.arc(avatarX + avatarSize / 2, avatarY + avatarSize / 2, avatarSize / 2, 0, Math.PI * 2);
+      // ctx.closePath();
+      // ctx.clip();
+      // ctx.drawImage(avatar, avatarX, avatarY, avatarSize, avatarSize);
+      // ctx.restore();
 
       // Draw username with a subtle background rectangle
-      ctx.font = 'italic 30px Arial';
-      const nameText = `- ${user.username}`;
-      const nameWidth = ctx.measureText(nameText).width;
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-      ctx.fillRect(avatarX + avatarSize + 10, avatarY + avatarSize / 2 - 15, nameWidth + 20, 30);
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText(nameText, avatarX + avatarSize + 20, avatarY + avatarSize / 2 + 10);
+      // ctx.font = 'italic 30px Arial';
+      // const nameText = `- ${user.username}`;
+      // const nameWidth = ctx.measureText(nameText).width;
+      // ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+      // ctx.fillRect(avatarX + avatarSize + 10, avatarY + avatarSize / 2 - 15, nameWidth + 20, 30);
+      // ctx.fillStyle = '#ffffff';
+      // ctx.fillText(nameText, avatarX + avatarSize + 20, avatarY + avatarSize / 2 + 10);
 
       // Add double border for a sophisticated frame
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';

@@ -20,10 +20,10 @@ const economySchema = new mongoose.Schema({
       default: []
     },
   ],
-  // lastDaily: {
-  //   type: Number,
-  //   default: 0
-  // },
+  lastDaily: {
+    type: Number,
+    default: 10
+  },
   streak: {
     type: Number,
     default: 0

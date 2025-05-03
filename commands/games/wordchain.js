@@ -1,39 +1,87 @@
 const { 
-    Client, 
-    GatewayIntentBits, 
     EmbedBuilder, 
     ActionRowBuilder, 
     ButtonBuilder, 
     ButtonStyle, 
-    ComponentType 
+    ComponentType,
+    AttachmentBuilder
 } = require("discord.js");
+const axios = require('axios');
+const Leaderboard = require('../util/leaderboard');
 
-const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent
-    ]
-});
+const DICTIONARY_API_URL = "https://api.dictionaryapi.dev/api/v2/entries/en/";
 
-const wordChain = new Map();
-const validWords = new Set();
-const alphabetRegex = /^[a-zA-Z]+$/;
+class WordChainGame {
+    constructor() {
+        this.usedWords = new Set();
+        this.lastWord = '';
+        this.minWordLength = 2;
+        this.maxWordLength = 45;
+    }
+
+    reset() {
+        this.usedWords.clear();
+        this.lastWord = '';
+    }
+
+    isValidFormat(word) {
+        return (
+            typeof word === 'string' &&
+            word.length >= this.minWordLength &&
+            word.length <= this.maxWordLength &&
+            /^[a-zA-Z]+$/.test(word)
+        );
+    }
+
+    followsChainRules(word) {
+        word = word.toLowerCase();
+        if (!this.lastWord || word[0] === this.lastWord.slice(-1)) {
+            if (!this.usedWords.has(word)) {
+                return { valid: true };
+            }
+            return { valid: false, reason: "This word has already been used in this game!" };
+        }
+        return { 
+            valid: false, 
+            reason: `Word must start with the letter '${this.lastWord.slice(-1).toUpperCase()}'!`
+        };
+    }
+
+    addWord(word) {
+        word = word.toLowerCase();
+        this.usedWords.add(word);
+        this.lastWord = word;
+    }
+}
+
+async function isRealWord(word) {
+    try {
+        const response = await axios.get(`${DICTIONARY_API_URL}${word}`);
+        return response.status === 200;
+    } catch (error) {
+        if (error.response && error.response.status === 404) {
+            return false;
+        }
+        console.error('Dictionary API error:', error);
+        return true;
+    }
+}
 
 module.exports = {
     name: "wordchain",
     description: "Start a Word Chain game!",
-    async execute(message, args) {
-        // Initialize game state
+    async execute(message, args, client) { // Accept client as parameter
         let currentPlayers = new Set();
         let gameStarted = false;
+        const game = new WordChainGame();
+        const allPlayers = [];
+        const eliminationOrder = []; // Track elimination order
 
         const embed = new EmbedBuilder()
             .setTitle("📝 Word Chain Game!")
             .setDescription("Click the Join button to participate!\n\n**Required Players:** 2-6 players\n**Time Remaining:** 30 seconds\n\n**Current Players:** 0/6")
             .setColor('DarkAqua');
 
-        // Create buttons
         const joinButton = new ButtonBuilder()
             .setCustomId('join_game')
             .setLabel('Join Game')
@@ -56,90 +104,65 @@ module.exports = {
         const row = new ActionRowBuilder()
             .addComponents(joinButton, leaveButton, startButton);
 
-        // Send initial message with buttons
         const gameMessage = await message.channel.send({
             embeds: [embed],
             components: [row]
         });
 
-        // Create button collector
         const collector = gameMessage.createMessageComponentCollector({
             componentType: ComponentType.Button,
             time: 30000
         });
 
-        // Handle button interactions
         collector.on('collect', async (interaction) => {
             if (gameStarted) {
-                await interaction.reply({ 
-                    content: "Game has already started!", 
-                    ephemeral: true 
-                });
+                await interaction.reply({ content: "Game has already started!", ephemeral: true });
                 return;
             }
 
             switch (interaction.customId) {
                 case 'join_game':
                     if (currentPlayers.has(interaction.user.id)) {
-                        await interaction.reply({ 
-                            content: "You've already joined the game!", 
-                            ephemeral: true 
-                        });
+                        await interaction.reply({ content: "You've already joined the game!", ephemeral: true });
                         return;
                     }
-
-                    if (currentPlayers.size >= 6) {
-                        await interaction.reply({ 
-                            content: "Game is full! (6/6 players)", 
-                            ephemeral: true 
-                        });
+                    if (currentPlayers.size >= 10) {
+                        await interaction.reply({ content: "Game is full! (10/10 players)", ephemeral: true });
                         return;
                     }
-
                     currentPlayers.add(interaction.user.id);
-                    await message.channel.send(`✅ ${interaction.user} has joined the game! (${currentPlayers.size}/6 players)`);
+                    allPlayers.push({ id: interaction.user.id, username: interaction.user.username, wordsUsed: 0 });
+                    await message.channel.send(`✅ ${interaction.user} has joined the game! (${currentPlayers.size}/10 players)`);
                     break;
 
                 case 'leave_game':
                     if (!currentPlayers.has(interaction.user.id)) {
-                        await interaction.reply({ 
-                            content: "You haven't joined the game!", 
-                            ephemeral: true 
-                        });
+                        await interaction.reply({ content: "You haven't joined the game!", ephemeral: true });
                         return;
                     }
-
                     currentPlayers.delete(interaction.user.id);
-                    await message.channel.send(`❌ ${interaction.user} has left the game! (${currentPlayers.size}/6 players)`);
+                    const index = allPlayers.findIndex(p => p.id === interaction.user.id);
+                    if (index !== -1) allPlayers.splice(index, 1);
+                    await message.channel.send(`❌ ${interaction.user} has left the game! (${currentPlayers.size}/10 players)`);
                     break;
 
                 case 'start_game':
                     if (interaction.user.id !== message.author.id) {
-                        await interaction.reply({ 
-                            content: "Only the game creator can start the game early!", 
-                            ephemeral: true 
-                        });
+                        await interaction.reply({ content: "Only the game creator can start the game early!", ephemeral: true });
                         return;
                     }
-
                     if (currentPlayers.size < 2) {
-                        await interaction.reply({ 
-                            content: "Need at least 2 players to start!", 
-                            ephemeral: true 
-                        });
+                        await interaction.reply({ content: "Need at least 2 players to start!", ephemeral: true });
                         return;
                     }
-
                     collector.stop('gameStart');
                     break;
             }
 
-            // Update embed and buttons
-            const timeLeft = Math.ceil((collector.options.time - (Date.now() - collector.createTimestamp)) / 1000);
+            const timeLeft = Math.ceil((collector.options.time - (Date.now() - gameMessage.createdTimestamp)) / 1000);
             const updatedEmbed = EmbedBuilder.from(gameMessage.embeds[0])
                 .setDescription(`Click the Join button to participate!\n\n**Required Players:** 2-6 players\n**Time Remaining:** ${timeLeft} seconds\n\n**Current Players:** ${currentPlayers.size}/6`);
 
-            // Update start button state
             const updatedRow = new ActionRowBuilder()
                 .addComponents(
                     joinButton,
@@ -160,11 +183,8 @@ module.exports = {
             await interaction.deferUpdate();
         });
 
-        // Handle collection end
         collector.on('end', async (collected, reason) => {
-            const players = Array.from(currentPlayers).map(id => message.guild.members.cache.get(id)).filter(Boolean);
-            
-            if (players.length < 2) {
+            if (currentPlayers.size < 2) {
                 await gameMessage.edit({
                     components: [],
                     embeds: [EmbedBuilder.from(gameMessage.embeds[0]).setColor('Red')]
@@ -173,29 +193,23 @@ module.exports = {
             }
 
             gameStarted = true;
+            game.reset();
 
-            // Disable all buttons
             await gameMessage.edit({
                 components: [],
                 embeds: [EmbedBuilder.from(gameMessage.embeds[0]).setColor('Green')]
             });
 
-            const playerList = players.map((player, index) => ({ 
-                id: player.id, 
-                username: player.user.username, 
-                number: index + 1 
-            }));
+            const activePlayers = [...allPlayers];
 
-            // Final player list embed
             const playerListEmbed = new EmbedBuilder()
                 .setTitle("👥 Final Players List")
-                .setDescription(playerList.map(p => `${p.number}. ${p.username}`).join('\n'))
+                .setDescription(allPlayers.map((p, i) => `${i + 1}. ${p.username}`).join('\n'))
                 .setFooter({ text: `Game starting in 5 seconds...` })
                 .setColor('Green');
             
             await message.channel.send({ embeds: [playerListEmbed] });
 
-            // Wait 5 seconds before starting
             await new Promise(resolve => setTimeout(resolve, 5000));
 
             const rulesEmbed = new EmbedBuilder()
@@ -205,17 +219,15 @@ module.exports = {
             
             await message.channel.send({ embeds: [rulesEmbed] });
 
-            // Start the game
             const startingWord = "Apple";
-            validWords.add(startingWord.toLowerCase());
+            game.addWord(startingWord);
             let playerTurn = 0;
 
             await message.channel.send(`🎮 **Game Started!** First word: **${startingWord}**`);
-            let lastLetter = startingWord.slice(-1).toLowerCase();
-
-            while (playerList.length > 1) {
-                const currentPlayer = playerList[playerTurn % playerList.length];
-                await message.channel.send(`🔄 **${currentPlayer.username}'s turn!** Say a word starting with **${lastLetter.toUpperCase()}**. You have **10 seconds!**`);
+            
+            while (activePlayers.length > 1) {
+                const currentPlayer = activePlayers[playerTurn % activePlayers.length];
+                await message.channel.send(`🔄 <@${currentPlayer.id}>'s turn! Say a word starting with **${game.lastWord.slice(-1).toUpperCase()}**. You have **10 seconds!**`);
 
                 try {
                     const collectedWord = await message.channel.awaitMessages({
@@ -226,28 +238,56 @@ module.exports = {
 
                     if (!collectedWord.size) {
                         await message.channel.send(`⏳ **${currentPlayer.username}** didn't respond in time and is eliminated! ❌`);
-                        playerList.splice(playerTurn % playerList.length, 1);
+                        eliminationOrder.push(activePlayers.splice(playerTurn % activePlayers.length, 1)[0]);
                         continue;
                     }
 
-                    const word = collectedWord.first().content.trim().toLowerCase();
+                    const word = collectedWord.first().content.trim();
 
-                    if (!alphabetRegex.test(word) || validWords.has(word) || word[0] !== lastLetter) {
-                        await message.channel.send(`🚫 **${currentPlayer.username}** used an invalid word and is eliminated! ❌`);
-                        playerList.splice(playerTurn % playerList.length, 1);
+                    if (!game.isValidFormat(word)) {
+                        await message.channel.send(`🚫 **${currentPlayer.username}** used an invalid word format and is eliminated! Words must be ${game.minWordLength}-${game.maxWordLength} letters long and contain only letters. ❌`);
+                        eliminationOrder.push(activePlayers.splice(playerTurn % activePlayers.length, 1)[0]);
                         continue;
                     }
 
-                    validWords.add(word);
-                    lastLetter = word.slice(-1);
+                    const chainCheck = game.followsChainRules(word);
+                    if (!chainCheck.valid) {
+                        await message.channel.send(`🚫 **${currentPlayer.username}** is eliminated! ${chainCheck.reason} ❌`);
+                        eliminationOrder.push(activePlayers.splice(playerTurn % activePlayers.length, 1)[0]);
+                        continue;
+                    }
+
+                    const isValid = await isRealWord(word);
+                    if (!isValid) {
+                        await message.channel.send(`🚫 **${currentPlayer.username}** used a non-existent word and is eliminated! ❌`);
+                        eliminationOrder.push(activePlayers.splice(playerTurn % activePlayers.length, 1)[0]);
+                        continue;
+                    }
+
+                    game.addWord(word);
+                    currentPlayer.wordsUsed += 1;
+                    const originalPlayer = allPlayers.find(p => p.id === currentPlayer.id);
+                    if (originalPlayer) originalPlayer.wordsUsed += 1;
+                    await message.channel.send(`✅ Valid word: **${word}**`);
                     playerTurn++;
+
                 } catch (error) {
                     await message.channel.send(`❌ **Error occurred!**`);
                     console.error(error);
                 }
             }
 
-            await message.channel.send(`🏆 **${playerList[0].username}** is the last one standing! Congrats! 🎉`);
+            // Combine remaining players with eliminated ones in reverse elimination order
+            const finalRanking = [...activePlayers, ...eliminationOrder.reverse()];
+           
+
+            const leaderboardBuffer = await Leaderboard.createLeaderboardImage(finalRanking, message.client);
+            const leaderboardAttachment = new AttachmentBuilder(leaderboardBuffer, { name: 'leaderboard.png' });
+
+            await message.channel.send({ 
+                content: `🏆 **${activePlayers[0].username}** is the last one standing! Congrats! 🎉\nHere's the final leaderboard:`,
+                files: [leaderboardAttachment] 
+            });
         });
     }
 };
