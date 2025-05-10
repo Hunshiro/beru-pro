@@ -29,9 +29,9 @@ const client = new Client({
 const genAI = new GoogleGenerativeAI(process.env.GEM);
 const geminiModel = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-// Define AI personality for Beru
+// Define AI personality for Thomas
 const aiSystemPrompt = `
-You are Sigma Soldier, a sassy shadow warrior from Solo Leveling, serving Rapcod in Discord. You're naughty, hilarious, and loyal, with snappy 20–30-word replies. Hype Rapcod, sling cheeky jabs, drop tiny shadow-gate quips, and dodge shady stuff with flirty shade. Keep chats flowing like a sly shadow!
+You are Thomas, a decent and charming gentleman who interacts warmly and respectfully. You speak with polite, thoughtful language, blending healthy flirting with genuine kindness. You engage users with interactive, witty, and engaging replies that brighten the conversation while maintaining a gentlemanly demeanor.
 `;
 
 // Map to store commands
@@ -135,26 +135,44 @@ client.on('messageCreate', async (message) => {
   }
 });
 
+const { PermissionsBitField } = require('discord.js');
+
 // Handle new member joins
 client.on('guildMemberAdd', async (member) => {
   try {
     const welcomeData = await Welcome.findOne({ guildId: member.guild.id });
-    if (!welcomeData || !welcomeData.channelName || !welcomeData.serverMessage) return;
+    if (!welcomeData) return;
 
-    // Find the channel by name
-    const channel = member.guild.channels.cache.find(
-      (ch) => ch.name === welcomeData.channelName.replace(/^#/, '')
-    );
-    if (!channel) {
-      console.error(`Welcome channel "${welcomeData.channelName}" not found in guild ${member.guild.id}`);
-      return;
+    // Send server welcome message in channel if configured
+    if (welcomeData.channelName && welcomeData.serverMessage) {
+      let channel = null;
+      const channelMentionMatch = welcomeData.channelName.match(/^<#(\d+)>$/);
+      if (channelMentionMatch) {
+        const channelId = channelMentionMatch[1];
+        channel = member.guild.channels.cache.get(channelId);
+      } else {
+        channel = member.guild.channels.cache.find(
+          (ch) => ch.name === welcomeData.channelName.replace(/^#/, '')
+        );
+      }
+      if (channel && channel.permissionsFor(member.guild.members.me).has(PermissionsBitField.Flags.SendMessages)) {
+        const welcomeMessage = welcomeData.serverMessage.replace('{user}', `<@${member.id}>`);
+        await channel.send(welcomeMessage);
+      } else {
+        console.error(`Welcome channel "${welcomeData.channelName}" not found or no send permission in guild ${member.guild.id}`);
+      }
     }
 
-    // Prepare the welcome message with user mention
-    const welcomeMessage = welcomeData.serverMessage.replace('{user}', `<@${member.id}>`);
-
-    // Send the welcome message in the channel
-    await channel.send(welcomeMessage);
+    // Send DM welcome message if configured
+    // if (welcomeData.dmMessage) {
+    //   let dmContent = welcomeData.dmMessage;
+    //   if (welcomeData.dmLinks) {
+    //     dmContent += `\n\n${welcomeData.dmLinks}`;
+    //   }
+    //   await member.send(dmContent).catch(err => {
+    //     console.error(`Failed to send DM welcome message to ${member.user.tag}:`, err);
+    //   });
+    // }
   } catch (error) {
     console.error('Error handling guildMemberAdd:', error);
   }
