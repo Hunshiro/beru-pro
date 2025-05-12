@@ -163,7 +163,7 @@ client.on('guildMemberAdd', async (member) => {
   }
 });
 
-client.login(process.env.TOKEN2);
+client.login(process.env.TOKEN);
 
 const express = require('express');
 const app = express();
