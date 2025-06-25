@@ -37,7 +37,7 @@ module.exports = {
       // Fetch server XP settings
       let serverSettings = await ServerSettings.findOne({ guildId: message.guild.id });
       if (!serverSettings) {
-        serverSettings = { xpReward: 100, cooldownSeconds:1 };
+        serverSettings = { xpReward: 10, cooldownSeconds:30 };
       }
 
       const now = new Date();
