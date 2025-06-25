@@ -1,4 +1,9 @@
-const { Client, GatewayIntentBits, Partials, EmbedBuilder, AttachmentBuilder, PermissionsBitField } = require('discord.js');
+const {
+  Client,
+  GatewayIntentBits,
+  Partials,
+  PermissionsBitField,
+} = require('discord.js');
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
@@ -77,6 +82,7 @@ client.on('messageCreate', async (message) => {
 
   await afk.checkMentions(message);
 
+  // Context-aware Beru AI
   if (message.mentions.users.has(client.user.id)) {
     const cleanMessage = message.content.replace(/<@!?[0-9]+>/g, '').trim();
     if (!cleanMessage) return message.reply('Tch, no words? Speak! *chitter*');
@@ -91,10 +97,15 @@ client.on('messageCreate', async (message) => {
       const toxicNote = isToxic ? '[Toxic language detected]' : '';
 
       const historyKey = message.channel.id;
-      const history = conversationHistory.get(historyKey) || [];
+      let history = conversationHistory.get(historyKey) || [];
+
+      // Store user input
       history.push(`User: ${cleanMessage}`);
-      if (history.length > MAX_HISTORY) history.shift();
-      conversationHistory.set(historyKey, history);
+
+      // Trim to last 6 turns (12 entries)
+      if (history.length > MAX_HISTORY * 2) {
+        history = history.slice(-MAX_HISTORY * 2);
+      }
 
       const prompt = `
 ${aiSystemPrompt}
@@ -105,14 +116,24 @@ Channel Topic: ${channelTopic}
 User: ${userName}
 ${toxicNote}
 
-[Conversation]
+[Conversation History]
 ${history.join('\n')}
+
 Beru:
 `.trim();
 
       const result = await geminiModel.generateContent(prompt);
       let aiReply = result.response.text().trim();
+
       if (aiReply.length > 1900) aiReply = `${aiReply.slice(0, 1900)}... *chitter*`;
+
+      // Store Beru's response
+      history.push(`Beru: ${aiReply}`);
+      conversationHistory.set(historyKey, history);
+
+      // Optional delay for realism
+      await new Promise((res) => setTimeout(res, 1000 + Math.random() * 2000));
+
       await message.reply(aiReply);
     } catch (error) {
       console.error('Error with Gemini API:', error);
@@ -121,12 +142,13 @@ Beru:
     return;
   }
 
+  // Command handling
   if (message.content.startsWith(prefix)) {
     const args = message.content.slice(prefix.length).trim().split(/ +/);
     const commandName = args.shift().toLowerCase();
     if (commands.has(commandName)) {
       try {
-        await commands.get(commandName).execute(message, args);
+        await commands.get(commandName).execute(message, args,client);
       } catch (error) {
         console.error(`Error in command ${commandName}:`, error);
         await message.reply('Command broke! Try again.');
@@ -151,11 +173,12 @@ client.on('guildMemberAdd', async (member) => {
           (ch) => ch.name === welcomeData.channelName.replace(/^#/, '')
         );
       }
+
       if (channel && channel.permissionsFor(member.guild.members.me).has(PermissionsBitField.Flags.SendMessages)) {
         const welcomeMessage = welcomeData.serverMessage.replace('{user}', `<@${member.id}>`);
         await channel.send(welcomeMessage);
       } else {
-        console.error(`Welcome channel "${welcomeData.channelName}" not found or no send permission in guild ${member.guild.id}`);
+        console.error(`Welcome channel "${welcomeData.channelName}" not found or no permission in guild ${member.guild.id}`);
       }
     }
   } catch (error) {
@@ -165,6 +188,7 @@ client.on('guildMemberAdd', async (member) => {
 
 client.login(process.env.TOKEN);
 
+// Web status endpoint
 const express = require('express');
 const app = express();
 app.get('/', (_, res) => res.send('Bot is running.'));

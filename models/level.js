@@ -7,6 +7,8 @@ const levelSchema = new mongoose.Schema({
     level: { type: Number, default: 0 },
     lastMessage: { type: Date, default: null },
     notifications: { type: Boolean, default: true }, // For muting level-up notifications
+    lastNotifiedLevel: { type: Number, default: -1 },
+
 });
 
 const levelRoleSchema = new mongoose.Schema({
