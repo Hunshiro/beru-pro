@@ -186,7 +186,7 @@ client.on('guildMemberAdd', async (member) => {
   }
 });
 
-client.login(process.env.TOKEN2);
+client.login(process.env.TOKEN);
 
 // Web status endpoint
 const express = require('express');
