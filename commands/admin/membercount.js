@@ -1,5 +1,8 @@
 const { AttachmentBuilder } = require('discord.js');
 const { createCanvas, loadImage } = require('canvas');
+const mongoose = require('mongoose');
+
+let Milestone = null;
 
 module.exports = {
     name: 'membercount',
@@ -12,7 +15,26 @@ module.exports = {
                 return;
             }
 
-            // Fetch all members (ensure intents include GuildMembers)
+            // Load Milestone model dynamically
+            if (!Milestone) {
+                try {
+                    Milestone = require('../../models/milestone');
+                    console.log('Milestone model loaded successfully for membercount.');
+                } catch (err) {
+                    console.error('Failed to load Milestone model:', err);
+                    await message.reply('Error: Milestone model not found. Please ensure the model file exists and Mongoose is connected.');
+                    return;
+                }
+            }
+
+            // Check Mongoose connection
+            if (mongoose.connection.readyState !== 1) {
+                console.error('Mongoose is not connected.');
+                await message.reply('Error: Database not connected. Please ensure Mongoose is set up.');
+                return;
+            }
+
+            // Fetch all members (ensure GuildMembers intent)
             const members = await guild.members.fetch();
             const totalMembers = members.size;
             const bots = members.filter(member => member.user.bot).size;
@@ -22,6 +44,11 @@ module.exports = {
             const serverName = guild.name;
             const serverId = guild.id;
             const createdAt = guild.createdAt.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' });
+
+            // Get milestone
+            const milestoneData = await Milestone.findOne({ guildId: guild.id }) || { goal: 20000 }; // Default 20k if not set
+            const goal = milestoneData.goal;
+            const percentage = Math.min((totalMembers / goal) * 100, 100).toFixed(1);
 
             // Create canvas
             const width = 1100;
@@ -61,7 +88,7 @@ module.exports = {
             roundRect(ctx, 40, 40, width - 80, height - 80, 35, true);
             ctx.shadowBlur = 0;
 
-            // Server Icon (if available)
+            // Server Icon
             let icon;
             try {
                 icon = await loadImage(guild.iconURL({ extension: 'png', size: 256 }) || '');
@@ -111,6 +138,55 @@ module.exports = {
             ctx.font = '20px monospace';
             ctx.fillStyle = '#b0c4de';
             ctx.fillText(`Created: ${createdAt}`, 250, 350);
+
+            // Milestone Badge (top-right corner)
+           // Circular Milestone Progress (top-right corner)
+const badgeSize = 220; // Slightly larger for better visibility
+const badgeX = width - badgeSize - 40;
+const badgeY = 40;
+const radius = 90;
+
+// Background circle with gradient
+const bgGradient1 = ctx.createRadialGradient(badgeX + badgeSize / 2, badgeY + badgeSize / 2, 0, badgeX + badgeSize / 2, badgeY + badgeSize / 2, radius);
+bgGradient1.addColorStop(0, 'rgba(0, 255, 150, 0.1)');
+bgGradient1.addColorStop(1, 'rgba(0, 204, 204, 0.1)');
+ctx.beginPath();
+ctx.arc(badgeX + badgeSize / 2, badgeY + badgeSize / 2, radius, 0, Math.PI * 2);
+ctx.fillStyle = bgGradient1;
+ctx.fill();
+ctx.lineWidth = 8;
+ctx.strokeStyle = 'rgba(0, 255, 150, 0.3)';
+ctx.stroke();
+
+// Progress circle with gradient
+const progressGradient = ctx.createLinearGradient(badgeX, badgeY, badgeX + badgeSize, badgeY + badgeSize);
+progressGradient.addColorStop(0, '#00ff96');
+progressGradient.addColorStop(1, '#00cccc');
+ctx.beginPath();
+ctx.arc(badgeX + badgeSize / 2, badgeY + badgeSize / 2, radius - 5, -Math.PI / 2, -Math.PI / 2 + (Math.PI * 2 * percentage / 100));
+ctx.strokeStyle = progressGradient;
+ctx.lineWidth = 12;
+ctx.lineCap = 'round';
+ctx.stroke();
+
+// Glowing outline
+ctx.shadowColor = '#00ff96';
+ctx.shadowBlur = 15;
+ctx.beginPath();
+ctx.arc(badgeX + badgeSize / 2, badgeY + badgeSize / 2, radius + 2, 0, Math.PI * 2);
+ctx.strokeStyle = 'rgba(0, 255, 150, 0.5)';
+ctx.lineWidth = 4;
+ctx.stroke();
+ctx.shadowBlur = 0;
+
+// Text labels
+ctx.font = 'bold 28px Arial';
+ctx.fillStyle = '#ffffff';
+ctx.textAlign = 'center';
+ctx.fillText(`Milestone: ${Math.floor(goal / 1000)}K`, badgeX + badgeSize / 2, badgeY + badgeSize / 2 - 10);
+ctx.font = '20px monospace';
+ctx.fillStyle = '#b0c4de';
+ctx.fillText(`${percentage}%`, badgeX + badgeSize / 2, badgeY + badgeSize / 2 + 20);
 
             // Timestamp
             const now = new Date();
